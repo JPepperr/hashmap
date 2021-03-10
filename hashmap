@@ -1,0 +1,423 @@
+#include <iostream>
+#include <vector>
+#include <list>
+#include <stdexcept>
+#include <initializer_list>
+#include <algorithm>
+
+using std::vector;
+using std::pair;
+using std::list;
+using std::initializer_list;
+
+template<class KeyType, class ValueType, class Hash = std::hash<KeyType> >
+class HashMap {
+    static const size_t START_CAPACITY = 4;
+    size_t cntElems = 0;
+    size_t capacity = START_CAPACITY;
+    Hash hasher;
+    vector<list<pair<const KeyType, ValueType>>> buckets;
+    list<size_t> nonEmptyBuckets;
+    vector<size_t> elemsInBucket;
+    vector<list<size_t>::iterator> inList;
+
+public:
+    class iterator {
+    public:
+        vector<list<pair<const KeyType, ValueType>>>* buckets;
+        list<size_t>*  nonEmptyBuckets;
+        vector<list<size_t>::iterator>* inList;
+        list<size_t>::iterator curBucket;
+        typename list<pair<const KeyType, ValueType>>::iterator curPair;
+
+        iterator() : buckets(nullptr), nonEmptyBuckets(nullptr), inList(nullptr) {};
+
+        iterator(vector<list<pair<const KeyType, ValueType>>>* buckets_,
+            list<size_t>* nonEmptyBuckets_,
+            vector<list<size_t>::iterator>* inList_) : buckets(buckets_),
+            nonEmptyBuckets(nonEmptyBuckets_), inList(inList_) {
+            curBucket = nonEmptyBuckets->begin();
+            if (curBucket != nonEmptyBuckets->end()) {
+                curPair = (*buckets)[*curBucket].begin();
+            } else {
+                curPair = (*buckets)[0].begin();
+            }
+        }
+
+        iterator(vector<list<pair<const KeyType, ValueType>>>* buckets_,
+            list<size_t>* nonEmptyBuckets_, vector<list<size_t>::iterator>* inList_,
+            list<size_t>::iterator curBucket_,
+            typename list<pair<const KeyType, ValueType>>::iterator curPair_) :
+            buckets(buckets_), nonEmptyBuckets(nonEmptyBuckets_), inList(inList_),
+            curBucket(curBucket_), curPair(curPair_) {};
+
+        iterator& operator=(const iterator& other) {
+            curBucket = other.curBucket;
+            curPair = other.curPair;
+            buckets = other.buckets;
+            nonEmptyBuckets = other.nonEmptyBuckets;
+            inList = other.inList;
+            return *this;
+        }
+
+        iterator& operator++() {
+            ++curPair;
+            if (curPair == (*buckets)[*curBucket].end()) {
+                ++curBucket;
+                if (curBucket != nonEmptyBuckets->end()) {
+                    curPair = (*buckets)[*curBucket].begin();
+                } else {
+                    curPair = (*buckets)[0].begin();
+                }
+            }
+            return *this;
+        }
+
+        iterator operator++(int) {
+            iterator other = *this;
+            ++curPair;
+            if (curPair == (*buckets)[*curBucket].end()) {
+                ++curBucket;
+                if (curBucket != nonEmptyBuckets->end()) {
+                    curPair = (*buckets)[*curBucket].begin();
+                } else {
+                    curPair = (*buckets)[0].begin();
+                }
+            }
+            return other;
+        }
+
+        pair<const KeyType, ValueType>& operator*() {
+            return *curPair;
+        }
+
+        const pair<const KeyType, ValueType>& operator*() const {
+            return *curPair;
+        }
+
+        pair<const KeyType, ValueType>* operator->() {
+            return &(*curPair);
+        }
+
+        const pair<const KeyType, ValueType>* operator->() const {
+            return &(*curPair);
+        }
+
+        friend bool operator==(const iterator& a, const iterator& b) {
+            return a.curBucket == b.curBucket && a.curPair == b.curPair;
+        }
+
+        friend bool operator!=(const iterator& a, const iterator& b) {
+            return !(a == b);
+        }
+    };
+
+    iterator begin() {
+        return iterator(&buckets, &nonEmptyBuckets, &inList);
+    }
+
+    iterator end() {
+        return iterator(&buckets, &nonEmptyBuckets, &inList,
+            nonEmptyBuckets.end(), buckets[0].begin());
+    }
+
+    class const_iterator {
+    public:
+        vector<list<pair<const KeyType, ValueType>>>* buckets;
+        list<size_t>*  nonEmptyBuckets;
+        vector<list<size_t>::iterator>* inList;
+        list<size_t>::iterator curBucket;
+        typename list<pair<const KeyType, ValueType>>::iterator curPair;
+
+        const_iterator() : buckets(nullptr), nonEmptyBuckets(nullptr), inList(nullptr) {};
+
+        const_iterator(vector<list<pair<const KeyType, ValueType>>>* buckets_,
+            list<size_t>* nonEmptyBuckets_, vector<list<size_t>::iterator>* inList_) :
+            buckets(buckets_), nonEmptyBuckets(nonEmptyBuckets_), inList(inList_) {
+            curBucket = nonEmptyBuckets->begin();
+            if (curBucket != nonEmptyBuckets->end()) {
+                curPair = (*buckets)[*curBucket].begin();
+            } else {
+                curPair = (*buckets)[0].begin();
+            }
+        }
+
+        const_iterator(vector<list<pair<const KeyType, ValueType>>>* buckets_,
+            list<size_t>* nonEmptyBuckets_, vector<list<size_t>::iterator>* inList_,
+            list<size_t>::iterator curBucket_,
+            typename list<pair<const KeyType, ValueType>>::iterator curPair_) :
+            buckets(buckets_), nonEmptyBuckets(nonEmptyBuckets_), inList(inList_),
+            curBucket(curBucket_), curPair(curPair_) {};
+
+        const_iterator& operator=(const_iterator other) {
+            curBucket = other.curBucket;
+            curPair = other.curPair;
+            buckets = other.buckets;
+            nonEmptyBuckets = other.nonEmptyBuckets;
+            inList = other.inList;
+            return *this;
+        }
+
+        const_iterator& operator++() {
+            ++curPair;
+            if (curPair == (*buckets)[*curBucket].end()) {
+                ++curBucket;
+                if (curBucket != nonEmptyBuckets->end()) {
+                    curPair = (*buckets)[*curBucket].begin();
+                } else {
+                    curPair = (*buckets)[0].begin();
+                }
+            }
+            return *this;
+        }
+
+        const_iterator operator++(int) {
+            const_iterator other = *this;
+            ++curPair;
+            if (curPair == (*buckets)[*curBucket].end()) {
+                ++curBucket;
+                if (curBucket != nonEmptyBuckets->end()) {
+                    curPair = (*buckets)[*curBucket].begin();
+                } else {
+                    curPair = (*buckets)[0].begin();
+                }
+            }
+            return other;
+        }
+
+        const pair<const KeyType, ValueType>& operator*() const {
+            return *curPair;
+        }
+
+        const pair<const KeyType, ValueType>* operator->() const {
+            return &(*curPair);
+        }
+
+        friend bool operator==(const const_iterator& a, const const_iterator& b) {
+            return a.curBucket == b.curBucket && a.curPair == b.curPair;
+        }
+
+        friend bool operator!=(const const_iterator& a, const const_iterator& b) {
+            return !(a == b);
+        }
+    };
+
+    const_iterator get_const_iterator(list<size_t>::iterator a, KeyType key) {
+        for (auto it = buckets[*a].begin(); it != buckets[*a].end(); it++) {
+            if (key == it->first) {
+                return const_iterator(&buckets, &nonEmptyBuckets, &inList, a, it);
+            }
+        }
+        return const_iterator();
+    }
+
+    const_iterator get_const_iterator_end() {
+        return const_iterator(&buckets, &nonEmptyBuckets, &inList,
+            nonEmptyBuckets.end(), buckets[0].begin());
+    }
+
+    const_iterator get_const_iterator_begin() {
+        return const_iterator(&buckets, &nonEmptyBuckets, &inList);
+    }
+    
+    const_iterator const_iterator_by_key(list<size_t>::iterator a, KeyType key) const {
+        return const_cast<HashMap*>(this)->get_const_iterator(a, key);
+    }
+
+    const_iterator begin() const {
+        return const_cast<HashMap*>(this)->get_const_iterator_begin();
+    }
+
+    const_iterator end() const {
+        return const_cast<HashMap*>(this)->get_const_iterator_end();
+    }
+
+    ValueType& insert(pair<KeyType, ValueType> element) {
+        if (cntElems >= 2 * capacity) {
+            reallocate(capacity * 2);
+        }
+        size_t curHash = hasher(element.first) % capacity;
+        list<pair<const KeyType, ValueType>>& curList = buckets[curHash];
+        auto it = find_if(curList.begin(), curList.end(),
+            [&](const pair<KeyType, ValueType>& cur) {
+                return cur.first == element.first; 
+        });
+        if (it == curList.end()) {
+            curList.insert(curList.begin(), element);
+            ++cntElems;
+            ++elemsInBucket[curHash];
+            if (elemsInBucket[curHash] == 1) {
+                nonEmptyBuckets.insert(nonEmptyBuckets.end(), curHash);
+                inList[curHash] = nonEmptyBuckets.end();
+                --inList[curHash];
+            }
+            return curList.begin()->second;
+        } else {
+            return it->second;
+        }
+    }
+
+    HashMap(Hash hasher_ = Hash()) : hasher(hasher_) {
+        buckets.resize(capacity);
+        elemsInBucket.resize(capacity);
+        inList.resize(capacity);
+    }
+
+    template<class Iterator>
+    HashMap(Iterator begin, Iterator end, Hash hasher_ = Hash()) : hasher(hasher_) {
+        buckets.resize(capacity);
+        elemsInBucket.resize(capacity);
+        inList.resize(capacity);
+        for (; begin != end; begin++) {
+            insert(*begin);
+        }
+    }
+
+    HashMap(initializer_list<pair<KeyType, ValueType>> a, Hash hasher_ = Hash()) : hasher(hasher_) {
+        buckets.resize(capacity);
+        elemsInBucket.resize(capacity);
+        inList.resize(capacity);
+        for (auto it = a.begin(); it != a.end(); it++) {
+            insert(*it);
+        }
+    }
+
+    HashMap(const HashMap& other) {
+        clear();
+        capacity = other.capacity;
+        hasher = other.hasher;
+        buckets.resize(capacity);
+        elemsInBucket.resize(capacity);
+        inList.resize(capacity);
+        for (auto elem : other) {
+            insert(elem);
+        }
+    }
+
+    HashMap& operator=(const HashMap other) {
+        clear();
+        capacity = other.capacity;
+        hasher = other.hasher;
+        buckets.resize(capacity);
+        elemsInBucket.resize(capacity);
+        inList.resize(capacity);
+        for (auto elem : other) {
+            insert(elem);
+        }
+        return *this;
+    }
+
+    size_t size() const {
+        return cntElems;
+    }
+
+    bool empty() const {
+        return (cntElems == 0);
+    }
+
+    Hash hash_function() const {
+        return hasher;
+    }
+
+    void erase(KeyType key) {
+        if (cntElems <= capacity / 8 && capacity > START_CAPACITY) {
+            reallocate(capacity / 2);
+        }
+        size_t curHash = hasher(key) % capacity;
+        list<pair<const KeyType, ValueType>>& curList = buckets[curHash];
+        auto it = find_if(curList.begin(), curList.end(),
+            [&](const pair<KeyType, ValueType>& cur) { return cur.first == key; });
+        if (it != curList.end()) {
+            curList.erase(it);
+            --cntElems;
+            --elemsInBucket[curHash];
+            if (elemsInBucket[curHash] == 0) {
+                nonEmptyBuckets.erase(inList[curHash]);
+            }
+        }
+    }
+
+    const_iterator find(KeyType key) const {
+        size_t curHash = hasher(key) % capacity;
+        const list<pair<const KeyType, ValueType>>& curList = buckets[curHash];
+        auto it = find_if(curList.begin(), curList.end(),
+            [&](const pair<const KeyType, ValueType>& cur) {
+            return cur.first == key;
+        });
+        if (it != curList.end()) {
+            return const_iterator_by_key(inList[curHash], key);
+        } else {
+            return end();
+        }
+    }
+
+    iterator find(KeyType key) {
+        size_t curHash = hasher(key) % capacity;
+        list<pair<const KeyType, ValueType>>& curList = buckets[curHash];
+        auto it = find_if(curList.begin(), curList.end(),
+            [&](const pair<KeyType, ValueType>& cur) {
+                return cur.first == key;
+        });
+        if (it != curList.end()) {
+            return iterator(&buckets, &nonEmptyBuckets, &inList, inList[curHash], it);
+        } else {
+            return end();
+        }
+    }
+
+    ValueType& operator[](KeyType key) {
+        iterator it = find(key);
+        if (it == end()) {
+            return insert({ key, ValueType() });
+        }
+        return it->second;
+    }
+
+    const ValueType& at(KeyType key) const {
+        const_iterator it = find(key);
+        if (it == end()) {
+            throw std::out_of_range("key doesn't exist");
+        }
+        return it->second;
+    }
+    void clear() {
+        for (auto num : nonEmptyBuckets) {
+            elemsInBucket[num] = 0;
+            buckets[num].clear();
+        }
+        nonEmptyBuckets.clear();
+        cntElems = 0;
+    }
+
+    void reallocate(size_t newCapacity) {
+        size_t _cntElems = 0;
+        vector<list<pair<const KeyType, ValueType>>> _buckets(newCapacity);
+        list<size_t> _nonEmptyBuckets;
+        vector<size_t> _elemsInBucket(newCapacity);
+        vector<list<size_t>::iterator> _inList(newCapacity);
+        for (auto elem : (*this)) {
+            size_t curHash = hasher(elem.first) % newCapacity;
+            list<pair<const KeyType, ValueType>>& curList = _buckets[curHash];
+            auto it = find_if(curList.begin(), curList.end(),
+                [&](const pair<const KeyType, ValueType>& cur) {
+                    return cur.first == elem.first;
+            });
+            if (it == curList.end()) {
+                curList.insert(curList.begin(), elem);
+                ++_cntElems;
+                ++_elemsInBucket[curHash];
+                if (_elemsInBucket[curHash] == 1) {
+                    _nonEmptyBuckets.insert(_nonEmptyBuckets.end(), curHash);
+                    _inList[curHash] = _nonEmptyBuckets.end();
+                    --_inList[curHash];
+                }
+            }
+        }
+        std::swap(cntElems, _cntElems);
+        std::swap(capacity, newCapacity);
+        std::swap(buckets, _buckets);
+        std::swap(nonEmptyBuckets, _nonEmptyBuckets);
+        std::swap(elemsInBucket, _elemsInBucket);
+        std::swap(inList, _inList);
+    }
+};
